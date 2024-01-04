@@ -1,0 +1,10 @@
+{
+  "Token": "Your Discord token, get one from https://discord.com/developers/applications.",
+  "UserID": "The User ID of the Discord account of the system you want to track. Probably yours.",
+  "PluralKitToken": "The PluralKit API token, get it with 'pk;token'.",
+  "LogChannel": "Log channel where switch logs will go.",
+  "//": "The below key is a map of Unicode emote code points to PluralKit member IDs. Fill it out as you wish. You should probably remove this comment.",
+  "MemberMap": {
+    "codepoint": "short-id (5 chars)"
+  }
+}

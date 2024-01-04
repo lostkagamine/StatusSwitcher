@@ -1,0 +1,9 @@
+# Build artifacts
+bin/
+obj/
+
+# IDE settings
+.idea/
+.vs/
+.vscode/
+*.user
