@@ -61,12 +61,6 @@ public static class Program
 
         Discord.PresenceUpdated += OnPresenceUpdate;
 
-        await Discord.UpdateStatusAsync(new DiscordActivity()
-        {
-            ActivityType = ActivityType.Playing,
-            Name = $"StatusSwitcher v{CurrentVersion}"
-        });
-
         await Discord.ConnectAsync();
         await Task.Delay(-1);
     }
