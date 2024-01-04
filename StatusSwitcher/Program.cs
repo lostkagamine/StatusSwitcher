@@ -28,7 +28,7 @@ public static class Program
         public ulong UserID = 0;
         // PluralKit API token
         public string PluralKitToken = null!;
-        // Channel to log switches (and exceptions) to
+        // Channel to log switches to
         public ulong LogChannel = 0;
         // The map of emotes to PK member IDs
         public Dictionary<string, string> MemberMap = null!;
