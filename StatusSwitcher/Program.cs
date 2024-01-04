@@ -1,11 +1,15 @@
 ﻿using System.Diagnostics;
 using System.Reflection;
 using DSharpPlus;
+using DSharpPlus.Entities;
 using DSharpPlus.EventArgs;
 using Flurl.Http;
 using Newtonsoft.Json;
 
 namespace StatusSwitcher;
+
+// StatusSwitcher - register switches in the PluralKit API automatically
+// Written by Madoka (Nightshade System) 4/1/2024
 
 public static class Program
 {
@@ -56,6 +60,12 @@ public static class Program
         });
 
         Discord.PresenceUpdated += OnPresenceUpdate;
+
+        await Discord.UpdateStatusAsync(new DiscordActivity()
+        {
+            ActivityType = ActivityType.Playing,
+            Name = $"StatusSwitcher v{CurrentVersion}"
+        });
 
         await Discord.ConnectAsync();
         await Task.Delay(-1);
