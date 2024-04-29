@@ -22,9 +22,9 @@ public static class Program
 
     private class Member
     {
-        public string Name;
-        public string Id;
-        public string Emote;
+        public string? Name;
+        public string? Id;
+        public string? Emote;
     }
 
     private class Config
@@ -146,7 +146,7 @@ public static class Program
                 .WithHeader("Authorization", CurrentConfig.PluralKitToken)
                 .PostJsonAsync(new
                 {
-                    members = new List<string> { member.Id }
+                    members = new List<string> { member.Id! }
                 });
         }
         catch (FlurlHttpException e)
