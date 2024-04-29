@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using DSharpPlus;
 using DSharpPlus.EventArgs;
 using Flurl.Http;
@@ -9,6 +10,7 @@ namespace StatusSwitcher;
 
 // StatusSwitcher - register switches in the PluralKit API automatically
 // Written by Madoka (Nightshade System) 4/1/2024
+// refactored by sayaka (nightshade system) 29/04/2024
 
 public static class Program
 {
@@ -16,11 +18,13 @@ public static class Program
     private static Config CurrentConfig = null!;
     private static Version CurrentVersion = Assembly.GetExecutingAssembly().GetName().Version!;
     
-    private static Dictionary<string, Member> LoadedMembers = new();
+    private static List<Member> LoadedMembers = new();
 
-    private struct Member
+    private class Member
     {
         public string Name;
+        public string Id;
+        public string Emote;
     }
 
     private class Config
@@ -33,8 +37,6 @@ public static class Program
         public string PluralKitToken = null!;
         // Channel to log switches to
         public ulong LogChannel = 0;
-        // The map of emotes to PK member IDs
-        public Dictionary<string, string> MemberMap = null!;
     }
     
     public static async Task Main(string[] args)
@@ -59,9 +61,23 @@ public static class Program
         });
 
         Discord.PresenceUpdated += OnPresenceUpdate;
+        Discord.MessageCreated += OnMessageCreate;
 
         await Discord.ConnectAsync();
         await Task.Delay(-1);
+    }
+
+    private static async Task OnMessageCreate(DiscordClient sender, MessageCreateEventArgs args)
+    {
+        if (args.Author.Id != CurrentConfig.UserID) return;
+
+        if (args.Message.Content == ".ssreload")
+        {
+            // flush member map to avoid dupes
+            LoadedMembers.Clear();
+            await PopulateMemberMap();
+            await args.Channel.SendMessageAsync($"Reloaded member list. Now tracking {LoadedMembers.Count} members.");
+        }
     }
 
     private static async Task PopulateMemberMap()
@@ -82,18 +98,33 @@ public static class Program
         var timeAfter = Stopwatch.GetElapsedTime(stopwatch);
         Console.WriteLine($"PK API took {timeAfter.TotalSeconds} seconds to respond");
         
-        var reversedDict = CurrentConfig.MemberMap
-            .ToDictionary(x => x.Value, x => x.Key);
+        // i could try some bullshit to match on specifically one codepoint but like, no
+        // fuck unicode, that shit isn't worth the trouble
+        var re = new Regex(@"\[status-switch-emote=(.+)\]");
         
         foreach (var key in req!)
         {
             var id = (string)key["id"];
-            if (!reversedDict.ContainsKey(id)) continue;
-            LoadedMembers[id] = new Member
+            var desc = (string?)key["description"];
+            var name = (string)key["name"];
+            // obviously if there's no description there is no tag
+            if (desc == null) continue;
+            var match = re.Match(desc);
+            if (match.Success)
             {
-                Name = (string)key["name"]
-            };
+                var emote = match.Groups[1].Value;
+                Console.WriteLine($"Found '{name}' [{emote}] ({id})");
+
+                LoadedMembers.Add(new Member
+                {
+                    Name = name,
+                    Emote = emote,
+                    Id = id,
+                });
+            }
         }
+        
+        Console.WriteLine($"Now tracking {LoadedMembers.Count} members.");
     }
 
     private static async Task OnPresenceUpdate(DiscordClient _, PresenceUpdateEventArgs args)
@@ -101,13 +132,11 @@ public static class Program
         if (args.User.Id != CurrentConfig.UserID) return;
         
         var emote = args.PresenceAfter.Activity.CustomStatus.Emoji.Name;
+
+        var member = LoadedMembers.FirstOrDefault(e => e.Emote == emote);
+        if (member == null) return;
         
-        // TODO: register switch-out (configurable) if emote is missing or invalid
-        if (!CurrentConfig.MemberMap.ContainsKey(emote)) return;
-        
-        var memberId = CurrentConfig.MemberMap[emote];
-        var memberName = LoadedMembers[memberId].Name;
-        Console.WriteLine($"Member id for emote is {memberId}, corresponding to {memberName}");
+        Console.WriteLine($"Switching to {member.Name} [{member.Id}]");
 
         try
         {
@@ -117,7 +146,7 @@ public static class Program
                 .WithHeader("Authorization", CurrentConfig.PluralKitToken)
                 .PostJsonAsync(new
                 {
-                    members = new List<string> { memberId }
+                    members = new List<string> { member.Id }
                 });
         }
         catch (FlurlHttpException e)
@@ -137,6 +166,6 @@ public static class Program
         // Switch successful, log a message
         var logChannel = await Discord.GetChannelAsync(CurrentConfig.LogChannel);
         await logChannel.SendMessageAsync(
-            $"<@{CurrentConfig.UserID}> Switch registered. Current fronter is now {memberName}.");
+            $"<@{CurrentConfig.UserID}> Switch registered. Current fronter is now {member.Name}.");
     }
 }
