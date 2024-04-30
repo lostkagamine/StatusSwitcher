@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Reflection;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using DSharpPlus;
 using DSharpPlus.EventArgs;
@@ -127,13 +128,22 @@ public static class Program
         Console.WriteLine($"Now tracking {LoadedMembers.Count} members.");
     }
 
-    private static async Task OnPresenceUpdate(DiscordClient _, PresenceUpdateEventArgs args)
-    {
-        if (args.User.Id != CurrentConfig.UserID) return;
-        
-        var emote = args.PresenceAfter.Activity.CustomStatus.Emoji.Name;
+    private static string? _emote;
 
-        var member = LoadedMembers.FirstOrDefault(e => e.Emote == emote);
+    private static async Task DoSwitchTask()
+    {
+        // wait ~a second, that should be enough time for state between clients to settle
+        await Task.Delay(1000);
+
+        // read the user's custom status
+        var user = await Discord.GetUserAsync(CurrentConfig.UserID);
+        var presence = user.Presence.Activity.CustomStatus.Emoji;
+        
+        // if we don't match, ignore the switch (just return and do nothing)
+        if (presence.Name != _emote) return;
+        
+        // rest proceeds as normal, find the member and hit the API etc etc
+        var member = LoadedMembers.FirstOrDefault(e => e.Emote == _emote);
         if (member == null) return;
         
         Console.WriteLine($"Switching to {member.Name} [{member.Id}]");
@@ -153,9 +163,9 @@ public static class Program
         {
             if (e.StatusCode != 400) throw;
             
-            var res = await e.GetResponseJsonAsync<Dictionary<string, dynamic>>();
+            var res = await e.GetResponseJsonAsync<Dictionary<string, JsonElement>>();
             if (!res.ContainsKey("code")) throw;
-            var code = (int)res["code"];
+            var code = res["code"].GetInt32();
             
             // 40004 = 'Member list identical to current fronter list.'
             if (code != 40004) throw;
@@ -168,5 +178,16 @@ public static class Program
         var logChannel = await Discord.GetChannelAsync(CurrentConfig.LogChannel);
         await logChannel.SendMessageAsync(
             $"<@{CurrentConfig.UserID}> Switch registered. Current fronter is now {member.Name}.");
+    }
+
+    private static async Task OnPresenceUpdate(DiscordClient _, PresenceUpdateEventArgs args)
+    {
+        if (args.User.Id != CurrentConfig.UserID) return;
+        
+        // make a note of the emote the presence update delivered
+        var emote = args.PresenceAfter.Activity.CustomStatus.Emoji.Name;
+        _emote = emote;
+
+        await DoSwitchTask();
     }
 }
