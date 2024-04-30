@@ -154,6 +154,7 @@ public static class Program
             if (e.StatusCode != 400) throw;
             
             var res = await e.GetResponseJsonAsync<Dictionary<string, dynamic>>();
+            if (!res.ContainsKey("code")) throw;
             var code = (int)res["code"];
             
             // 40004 = 'Member list identical to current fronter list.'
